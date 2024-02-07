@@ -3,8 +3,10 @@
 # To be removed
 # Workaround a bug where the initial /etc/dnf/dnf.conf file contains
 # just the "tsflags=nodocs" line
-printf '[main]\ngpgcheck=True\ninstallonly_limit=3\nclean_requirements_on_remove=True\nbest=False\nskip_if_unavailable=True\ntsflags=nodocs' > /etc/dnf/dnf.conf
+printf '[main]\ngpgcheck=True\ninstallonly_limit=3\nclean_requirements_on_remove=True\nbest=False\nskip_if_unavailable=True\ntsflags=nodocs' >/etc/dnf/dnf.conf
 
+dnf install -y nodejs18
+npm-18 install -g yarn
 dnf install -y --nogpgcheck \
   mingw64-dlfcn \
   mingw64-exiv2 \
@@ -60,6 +62,7 @@ dnf install -y --nogpgcheck \
   mingw64-qt5-qttranslations \
   mingw64-qt5-qtwebkit \
   mingw64-qt5-qtxmlpatterns \
+  mingw64-qt5-qt3d \
   mingw64-qtkeychain-qt5 \
   mingw64-quazip-qt5 \
   mingw64-qwt-qt5 \
@@ -80,6 +83,7 @@ dnf install -y --nogpgcheck \
   python-devel \
   python-qt5 \
   python3-qscintilla-qt5 \
+  qscintilla-qt5 \
   qt5-linguist \
   qt5-qtbase-devel \
   sqlite-devel \

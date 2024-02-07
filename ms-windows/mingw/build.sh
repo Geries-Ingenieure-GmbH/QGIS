@@ -3,11 +3,10 @@
 # Run from QGIS root directory with:
 # docker run --rm -w /QGIS -v $(pwd):/QGIS elpaso/qgis-deps-mingw:latest /QGIS/ms-windows/mingw/build.sh
 
-
 #!/bin/sh
 
 # shellcheck disable=SC2086,SC2035,SC2035,SC2046,SC2044,SC2012,SC2155
-
+source ms-windows/mingw/mingwdeps.sh
 arch=${1:-x86_64}
 DEBUG=false
 if [ "$2" == "debug" ]; then
@@ -16,25 +15,24 @@ fi
 
 njobs=${3:-$(($(grep -c ^processor /proc/cpuinfo) * 3 / 2))}
 
-
 if [ "$arch" == "i686" ]; then
-    bits=32
+  bits=32
 elif [ "$arch" == "x86_64" ]; then
-    bits=64
+  bits=64
 else
-    echo "Error: unrecognized architecture $arch"
-    exit 1
+  echo "Error: unrecognized architecture $arch"
+  exit 1
 fi
 
 # Do copies instead of links if building inside container
 if [ -f /.dockerenv ]; then
-    lnk() {
-        cp -aL "$1" "$2"
-    }
+  lnk() {
+    cp -aL "$1" "$2"
+  }
 else
-    lnk() {
-        ln -sf "$1" "$2"
-    }
+  lnk() {
+    ln -sf "$1" "$2"
+  }
 fi
 
 # Note: This script is written to be used with the Fedora mingw environment
@@ -45,7 +43,7 @@ if $DEBUG; then
   buildtype="Debug"
 else
   optflags="-O2 -g1 -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions --param=ssp-buffer-size=4 -fno-omit-frame-pointer"
-  buildtype="RelWithDebugInfo"
+  buildtype="Release"
 fi
 pyver=$(mingw${bits}-python3 -c "import sys; print('.'.join(list(map(str, sys.version_info))[0:2]))")
 
@@ -78,12 +76,13 @@ mkdir -p "$BUILDDIR"
   cd "$BUILDDIR"
   mingw$bits-cmake \
     -DCMAKE_CROSS_COMPILING=1 \
-    -DUSE_CCACHE=ON \
     -DCMAKE_BUILD_TYPE=$buildtype \
-    -DNATIVE_CRSSYNC_BIN="$CRSSYNC_BIN" \
     -DNATIVE_Python_EXECUTABLE=python3 \
     -DBUILD_TESTING=OFF \
     -DENABLE_TESTS=OFF \
+    -DWITH_DRACO=False \
+    -DWITH_3D=True \
+    -DWITH_PDAL=False \
     -DQGIS_BIN_SUBDIR=bin \
     -DQGIS_CGIBIN_SUBDIR=bin \
     -DQGIS_LIB_SUBDIR=lib \
@@ -95,16 +94,10 @@ mkdir -p "$BUILDDIR"
     -DQGIS_QML_SUBDIR=lib/qt5/qml \
     -DBINDINGS_GLOBAL_INSTALL=ON \
     -DSIP_GLOBAL_INSTALL=ON \
-    -DWITH_3D=OFF \
-    -DWITH_DRACO=OFF \
-    -DWITH_PDAL=OFF \
-    -DWITH_SERVER=ON \
-    -DWITH_SERVER_LANDINGPAGE_WEBAPP=ON \
     -DTXT2TAGS_EXECUTABLE= \
     ..
 )
 echo "::endgroup::"
-
 
 # Compile native crssync
 # mkdir -p $BUILDDIR/native_crssync
@@ -119,7 +112,7 @@ echo "::endgroup::"
 # export DISPLAY=:99
 
 echo "::group::build"
-mingw$bits-make -C"$BUILDDIR" -j"$njobs" #VERBOSE=1
+mingw$bits-make -C"$BUILDDIR" -j"$njobs" VERBOSE=1
 echo "::endgroup::"
 
 echo "::group::install"
@@ -138,77 +131,76 @@ rm -rf "${installroot}/share/qgis/python/plugins/{MetaSearch,processing}"
 
 # Strip debuginfo
 binaries=$(find "$installprefix" -name '*.exe' -or -name '*.dll' -or -name '*.pyd')
-for f in $binaries
-do
-    case $(mingw-objdump -h "$f" 2>/dev/null | grep -E -o '(debug[\.a-z_]*|gnu.version)') in
-        *debuglink*) continue ;;
-        *debug*) ;;
-        *gnu.version*)
-        echo "WARNING: $(basename "$f") is already stripped!"
-        continue
-        ;;
-        *) continue ;;
-    esac
+for f in $binaries; do
+  case $(mingw-objdump -h "$f" 2>/dev/null | grep -E -o '(debug[\.a-z_]*|gnu.version)') in
+  *debuglink*) continue ;;
+  *debug*) ;;
+  *gnu.version*)
+    echo "WARNING: $(basename "$f") is already stripped!"
+    continue
+    ;;
+  *) continue ;;
+  esac
 
-    echo extracting debug info from "$f"
-    mingw-objcopy --only-keep-debug "$f" "$f.debug" || :
-    pushd $(dirname "$f")
-    keep_symbols=$(mktemp)
-    mingw-nm $f.debug --format=sysv --defined-only | awk -F \| '{ if ($4 ~ "Function") print $1 }' | sort > "$keep_symbols"
-    mingw-objcopy --add-gnu-debuglink=$(basename "$f.debug") --strip-unneeded $(basename "$f") --keep-symbols="$keep_symbols" || :
-    rm -f "$keep_symbols"
-    popd
+  echo extracting debug info from "$f"
+  mingw-objcopy --only-keep-debug "$f" "$f.debug" || :
+  pushd $(dirname "$f")
+  keep_symbols=$(mktemp)
+  mingw-nm $f.debug --format=sysv --defined-only | awk -F \| '{ if ($4 ~ "Function") print $1 }' | sort >"$keep_symbols"
+  mingw-objcopy --add-gnu-debuglink=$(basename "$f.debug") --strip-unneeded $(basename "$f") --keep-symbols="$keep_symbols" || :
+  rm -f "$keep_symbols"
+  popd
 done
 
 # Collect dependencies
 function isnativedll {
-    # If the import library exists but not the dynamic library, the dll ist most likely a native one
-    local lower=${1,,}
-    [ ! -e $MINGWROOT/bin/$1 ] && [ -f $MINGWROOT/lib/lib${lower/%.*/.a} ] && return 0;
-    return 1;
+  # If the import library exists but not the dynamic library, the dll ist most likely a native one
+  local lower=${1,,}
+  [ ! -e $MINGWROOT/bin/$1 ] && [ -f $MINGWROOT/lib/lib${lower/%.*/.a} ] && return 0
+  return 1
 }
 
 function linkDep {
-# Link the specified binary dependency and it's dependencies
-    local indent=$3
-    local destdir="$installprefix/${2:-bin}"
-    local name="$(basename $1)"
-    test -e "$destdir/$name" && return 0
-    test -e "$destdir/qgisplugins/$name" && return 0
-    [[ "$1" == *api-ms-win* ]] || [[ "$1" == *MSVCP*.dll ]] || [[ "$1" == *VCRUNTIME*.dll ]] && return 0
-    echo "${indent}${1}"
-    [ ! -e "$MINGWROOT/$1" ] && echo "Error: missing $MINGWROOT/$1" && return 1
-    mkdir -p "$destdir" || return 1
-    lnk "$MINGWROOT/$1" "$destdir/$name" || return 1
-    echo "${2:-bin}/$name: $(rpm -qf "$MINGWROOT/$1")" >> $installprefix/origins.txt
-    autoLinkDeps "$destdir/$name" "${indent}  " || return 1
-    [ -e "/usr/lib/debug${MINGWROOT}/$1.debug" ] && lnk "/usr/lib/debug${MINGWROOT}/$1.debug" "$destdir/$name.debug" || :
-    [ -e "$MINGWROOT/$1.debug" ] && lnk "$MINGWROOT/$1.debug" "$destdir/$name.debug" || :
-    return 0
+  # Link the specified binary dependency and it's dependencies
+  local indent=$3
+  local destdir="$installprefix/${2:-bin}"
+  local name="$(basename $1)"
+  test -e "$destdir/$name" && return 0
+  test -e "$destdir/qgisplugins/$name" && return 0
+  [[ "$1" == *api-ms-win* ]] || [[ "$1" == *MSVCP*.dll ]] || [[ "$1" == *VCRUNTIME*.dll ]] && return 0
+  echo "${indent}${1}"
+  [ ! -e "$MINGWROOT/$1" ] && echo "Error: missing $MINGWROOT/$1" && return 1
+  mkdir -p "$destdir" || return 1
+  lnk "$MINGWROOT/$1" "$destdir/$name" || return 1
+  echo "${2:-bin}/$name: $(rpm -qf "$MINGWROOT/$1")" >>$installprefix/origins.txt
+  autoLinkDeps "$destdir/$name" "${indent}  " || return 1
+  [ -e "/usr/lib/debug${MINGWROOT}/$1.debug" ] && lnk "/usr/lib/debug${MINGWROOT}/$1.debug" "$destdir/$name.debug" || :
+  [ -e "$MINGWROOT/$1.debug" ] && lnk "$MINGWROOT/$1.debug" "$destdir/$name.debug" || :
+  return 0
 }
 
 function autoLinkDeps {
-# Collects and links the dependencies of the specified binary
-    for dep in $(mingw-objdump -p "$1" | grep "DLL Name" | awk '{print $3}'); do
-        if ! isnativedll "$dep"; then
-            # HACK fix incorrect libpq case
-            dep=${dep/LIBPQ/libpq}
-            linkDep bin/$dep bin "$2" || return 1
-        fi
-    done
-    return 0
+  # Collects and links the dependencies of the specified binary
+  for dep in $(mingw-objdump -p "$1" | grep "DLL Name" | awk '{print $3}'); do
+    if ! isnativedll "$dep"; then
+      # HACK fix incorrect libpq case
+      dep=${dep/LIBPQ/libpq}
+      linkDep bin/$dep bin "$2" || return 1
+    fi
+  done
+  return 0
 }
 
 # Install python libs
 (
-cd $MINGWROOT
-SAVEIFS=$IFS
-IFS=$(echo -en "\n\b")
-for file in $(find lib/python${pyver} -type f); do
+  cd $MINGWROOT
+  SAVEIFS=$IFS
+  IFS=$(echo -en "\n\b")
+  for file in $(find lib/python${pyver} -type f); do
     mkdir -p "$installprefix/$(dirname $file)"
     lnk "$MINGWROOT/$file" "$installprefix/$file"
-done
-IFS=$SAVEIFS
+  done
+  IFS=$SAVEIFS
 )
 
 # Gdal plugins
@@ -217,7 +209,7 @@ cp -a "$MINGWROOT/lib/gdalplugins" "$installprefix/lib/gdalplugins"
 
 binaries=$(find "$installprefix" -name '*.exe' -or -name '*.dll' -or -name '*.pyd')
 for binary in $binaries; do
-    autoLinkDeps $binary
+  autoLinkDeps $binary
 done
 linkDep bin/gdb.exe
 linkDep bin/python3.exe
@@ -228,16 +220,16 @@ linkDep $(ls "$MINGWROOT/bin/libcrypto-"*.dll | sed "s|$MINGWROOT/||")
 linkDep lib/mod_spatialite.dll bin
 
 # Additional dependencies
-linkDep lib/qt5/plugins/imageformats/qgif.dll  bin/imageformats
+linkDep lib/qt5/plugins/imageformats/qgif.dll bin/imageformats
 linkDep lib/qt5/plugins/imageformats/qicns.dll bin/imageformats
-linkDep lib/qt5/plugins/imageformats/qico.dll  bin/imageformats
-linkDep lib/qt5/plugins/imageformats/qjp2.dll  bin/imageformats
+linkDep lib/qt5/plugins/imageformats/qico.dll bin/imageformats
+linkDep lib/qt5/plugins/imageformats/qjp2.dll bin/imageformats
 linkDep lib/qt5/plugins/imageformats/qjpeg.dll bin/imageformats
-linkDep lib/qt5/plugins/imageformats/qtga.dll  bin/imageformats
+linkDep lib/qt5/plugins/imageformats/qtga.dll bin/imageformats
 linkDep lib/qt5/plugins/imageformats/qtiff.dll bin/imageformats
 linkDep lib/qt5/plugins/imageformats/qwbmp.dll bin/imageformats
 linkDep lib/qt5/plugins/imageformats/qwebp.dll bin/imageformats
-linkDep lib/qt5/plugins/imageformats/qsvg.dll  bin/imageformats
+linkDep lib/qt5/plugins/imageformats/qsvg.dll bin/imageformats
 linkDep lib/qt5/plugins/platforms/qwindows.dll bin/platforms
 linkDep lib/qt5/plugins/printsupport/windowsprintersupport.dll bin/printsupport
 linkDep lib/qt5/plugins/styles/qwindowsvistastyle.dll bin/styles
@@ -267,4 +259,4 @@ cp -a /usr/share/gdal "$installprefix/share/gdal"
 cp -a /usr/share/proj "$installprefix/share/proj"
 
 # Sort origins file
-sort "$installprefix/origins.txt" | uniq > "$installprefix/origins.new" && mv "$installprefix/origins.new" "$installprefix/origins.txt"
+sort "$installprefix/origins.txt" | uniq >"$installprefix/origins.new" && mv "$installprefix/origins.new" "$installprefix/origins.txt"
