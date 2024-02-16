@@ -180,7 +180,7 @@ void QgsOapifItemsRequest::processReply()
   try
   {
     QgsDebugMsgLevel( QStringLiteral( "json::parse() start time: %1" ).arg( time( nullptr ) ), 5 );
-    const json j = json::parse( buffer.constData(), buffer.constData()  + buffer.size(), excludeFeaturesCb );
+    const json j = json::parse( buffer.constData(), buffer.constData()  + buffer.size(), excludeFeaturesCb )
     QgsDebugMsgLevel( QStringLiteral( "json::parse() end time: %1" ).arg( time( nullptr ) ), 5 );
     // We hope that the "id" field is present in the "properties" object of the features
     mFoundIdTopLevel = false;
