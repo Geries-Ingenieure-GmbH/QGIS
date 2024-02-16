@@ -120,7 +120,7 @@ void QgsOapifItemsRequest::processReply()
   // Remove extraneous indentation spaces from the string. This helps a bit
   // improving JSON parsing performance afterwards
   QgsDebugMsgLevel( QStringLiteral( "JSON compaction start time: %1" ).arg( time( nullptr ) ), 5 );
-  removeUselessSpacesFromJSONBuffer( buffer );
+  /* removeUselessSpacesFromJSONBuffer( buffer ); */
   QgsDebugMsgLevel( QStringLiteral( "JSON compaction end time: %1" ).arg( time( nullptr ) ), 5 );
 
   const QString vsimemFilename = QStringLiteral( "/vsimem/oaipf_%1.json" ).arg( reinterpret_cast< quintptr >( &buffer ), QT_POINTER_SIZE * 2, 16, QLatin1Char( '0' ) );
@@ -163,43 +163,28 @@ void QgsOapifItemsRequest::processReply()
   vectorProvider.reset();
   VSIUnlink( vsimemFilename.toUtf8().constData() );
 
+  // We define a json::parser_calback to exclude the "features" key from the JSON parsing
+  // "features" can be very large and it will cost a lot of time to parse it again.
+  json::parser_callback_t excludeFeaturesCb = []( int depth, json::parse_event_t event, json & parsed )
+  {
+    if ( depth == 1 && event == json::parse_event_t::key && parsed == json("features") )
+    {
+      return false;
+    }
+    else
+    {
+      return true;
+    }
+  };
+
   try
   {
     QgsDebugMsgLevel( QStringLiteral( "json::parse() start time: %1" ).arg( time( nullptr ) ), 5 );
-    const json j = json::parse( buffer.constData(), buffer.constData()  + buffer.size() );
+    const json j = json::parse( buffer.constData(), buffer.constData()  + buffer.size(), excludeFeaturesCb )
     QgsDebugMsgLevel( QStringLiteral( "json::parse() end time: %1" ).arg( time( nullptr ) ), 5 );
-    if ( j.is_object() && j.contains( "features" ) )
-    {
-      const json &features = j["features"];
-      if ( features.is_array() && features.size() == mFeatures.size() )
-      {
-        for ( size_t i = 0; i < features.size(); i++ )
-        {
-          const json &jFeature = features[i];
-          if ( jFeature.is_object() && jFeature.contains( "id" ) )
-          {
-            const json &id = jFeature["id"];
-            mFoundIdTopLevel = true;
-            if ( id.is_string() )
-            {
-              mFeatures[i].second = QString::fromStdString( id.get<std::string>() );
-            }
-            else if ( id.is_number_integer() )
-            {
-              mFeatures[i].second = QString::number( id.get<qint64>() );
-            }
-          }
-          if ( jFeature.is_object() && jFeature.contains( "properties" ) )
-          {
-            const json &properties = jFeature["properties"];
-            if ( properties.is_object() && properties.contains( "id" ) )
-            {
-              mFoundIdInProperties = true;
-            }
-          }
-        }
-      }
-    }
+    // We hope that the "id" field is present in the "properties" object of the features
+    mFoundIdTopLevel = false;
+    mFoundIdInProperties = true;
 
     const auto links = QgsOAPIFJson::parseLinks( j );
     mNextUrl = QgsOAPIFJson::findLink( links,
