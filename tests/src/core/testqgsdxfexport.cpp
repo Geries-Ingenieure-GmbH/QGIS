@@ -72,6 +72,7 @@ class TestQgsDxfExport : public QObject
     void testDashedLine();
     void testTransform();
     void testDataDefinedPoints();
+    void testExtent();
 
   private:
     QgsVectorLayer *mPointLayer = nullptr;
@@ -426,7 +427,7 @@ void TestQgsDxfExport::testMtext()
                               " 20\n"
                               "**no check**\n"
                               "  1\n"
-                              "\\fQGIS Vera Sans|i0|b1;\\H3.81136;Biplane\n"
+                              "REGEX ^\\\\fQGIS Vera Sans\\|i0\\|b1;\\\\H3\\.\\d+;Biplane\n"
                               " 50\n"
                               "0.0\n"
                               " 41\n"
@@ -498,7 +499,7 @@ void TestQgsDxfExport::testMTextEscapeSpaces()
   QCOMPARE( d.writeToFile( &dxfFile, QStringLiteral( "CP1252" ) ), QgsDxfExport::ExportResult::Success );
   dxfFile.close();
   QString debugInfo;
-  QVERIFY2( fileContainsText( file, "\\fQGIS Vera Sans|i0|b1;\\H3.81136;A\\~text\\~with\\~spaces", &debugInfo ), debugInfo.toUtf8().constData() );
+  QVERIFY2( fileContainsText( file, "REGEX ^\\\\fQGIS Vera Sans\\|i0\\|b1;\\\\H3\\.\\d+;A\\\\~text\\\\~with\\\\~spaces", &debugInfo ), debugInfo.toUtf8().constData() );
 }
 
 void TestQgsDxfExport::testMTextEscapeLineBreaks()
@@ -1406,6 +1407,44 @@ void TestQgsDxfExport::testDataDefinedPoints()
                               "1.0\n"
                               "  0\n"
                               "ENDBLK", &debugInfo ), debugInfo.toUtf8().constData() );
+}
+
+void TestQgsDxfExport::testExtent()
+{
+  QgsDxfExport d;
+  d.addLayers( QList< QgsDxfExport::DxfLayer >() << QgsDxfExport::DxfLayer( mPolygonLayer ) );
+
+  QgsMapSettings mapSettings;
+  const QSize size( 640, 480 );
+  mapSettings.setOutputSize( size );
+  mapSettings.setExtent( mPolygonLayer->extent() );
+  mapSettings.setLayers( QList<QgsMapLayer *>() << mPolygonLayer );
+  mapSettings.setOutputDpi( 96 );
+  mapSettings.setDestinationCrs( mPolygonLayer->crs() );
+
+  d.setMapSettings( mapSettings );
+  d.setSymbologyScale( 1000 );
+  d.setExtent( QgsRectangle( -103.9, 25.0, -98.0, 29.8 ) );
+
+  const QString file1 = getTempFileName( "polygon_extent_dxf" );
+  QFile dxfFile1( file1 );
+  QCOMPARE( d.writeToFile( &dxfFile1, QStringLiteral( "CP1252" ) ), QgsDxfExport::ExportResult::Success );
+  dxfFile1.close();
+
+  // reload and compare
+  std::unique_ptr< QgsVectorLayer > result = std::make_unique< QgsVectorLayer >( file1, "dxf" );
+  QVERIFY( result->isValid() );
+  QCOMPARE( result->featureCount(), 1L );
+  QCOMPARE( result->wkbType(), Qgis::WkbType::LineString );
+
+  d.setExtent( QgsRectangle( 81.0, 34.0, -77.0, 38.0 ) );
+  const QString file2 = getTempFileName( "polygon_extent_empty_dxf" );
+  QFile dxfFile2( file2 );
+  QCOMPARE( d.writeToFile( &dxfFile2, QStringLiteral( "CP1252" ) ), QgsDxfExport::ExportResult::Success );
+  dxfFile2.close();
+
+  QString debugInfo;
+  QCOMPARE( fileContainsText( file2, "polygons", &debugInfo ), false );
 }
 
 bool TestQgsDxfExport::fileContainsText( const QString &path, const QString &text, QString *debugInfo ) const

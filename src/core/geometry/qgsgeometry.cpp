@@ -2641,6 +2641,20 @@ QgsGeometry QgsGeometry::delaunayTriangulation( double tolerance, bool edgesOnly
   return result;
 }
 
+QgsGeometry QgsGeometry::constrainedDelaunayTriangulation() const
+{
+  if ( !d->geometry )
+  {
+    return QgsGeometry();
+  }
+
+  QgsGeos geos( d->geometry.get() );
+  mLastError.clear();
+  QgsGeometry result( geos.constrainedDelaunayTriangulation() );
+  result.mLastError = mLastError;
+  return result;
+}
+
 QgsGeometry QgsGeometry::unionCoverage() const
 {
   if ( !d->geometry )
@@ -4297,9 +4311,9 @@ QgsGeometry QgsGeometry::convertToPolygon( bool destMultipart ) const
   }
 }
 
-QgsGeometryEngine *QgsGeometry::createGeometryEngine( const QgsAbstractGeometry *geometry )
+QgsGeometryEngine *QgsGeometry::createGeometryEngine( const QgsAbstractGeometry *geometry, double precision )
 {
-  return new QgsGeos( geometry );
+  return new QgsGeos( geometry, precision );
 }
 
 QDataStream &operator<<( QDataStream &out, const QgsGeometry &geometry )
