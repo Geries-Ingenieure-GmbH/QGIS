@@ -109,7 +109,7 @@ void QgsOapifItemsRequest::processReply()
 
   mFields = vectorProvider->fields();
   mWKBType = vectorProvider->wkbType();
-  const QString extraInfo = vectorProvider->getMetadataItem( "NATIVE_DATA", "NATIVE_DATA" )
+  const QString extraInfo = vectorProvider->getMetadataItem( "NATIVE_DATA", "NATIVE_DATA" );
   if ( mComputeBbox )
   {
     mBbox = vectorProvider->extent();
@@ -130,7 +130,7 @@ void QgsOapifItemsRequest::processReply()
   try
   {
     QgsDebugMsgLevel( QStringLiteral( "json::parse() start time: %1" ).arg( time( nullptr ) ), 5 );
-    const json j = json::parse( extraInfo.constBegin(), extraInfo.constEnd() );
+    const json j = json::parse( extraInfo.toStdString() );
     QgsDebugMsgLevel( QStringLiteral( "json::parse() end time: %1" ).arg( time( nullptr ) ), 5 );
     // We hope that the "id" field is present in the "properties" object of the features
     mFoundIdTopLevel = false;

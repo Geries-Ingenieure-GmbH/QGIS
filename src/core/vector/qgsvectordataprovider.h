@@ -596,7 +596,7 @@ class CORE_EXPORT QgsVectorDataProvider : public QgsDataProvider, public QgsFeat
      * For some providers we need to specify a domain name (i.e. OGRLayer).
      * We need this function because some providers expose more metadata than can fit in a QgsMetadata object.
      */
-    virtual QString getMetadataItem( const QString &key, const QString &domain ) const { return key.toString() + domain.toString(); }
+    virtual QString getMetadataItem( const QString &key, const QString &domain ) const { return key + domain; }
 
     /**
      * Gets the translated metadata key.

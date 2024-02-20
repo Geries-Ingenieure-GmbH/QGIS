@@ -112,7 +112,7 @@ echo "::endgroup::"
 # export DISPLAY=:99
 
 echo "::group::build"
-mingw$bits-make -C"$BUILDDIR" -j"$njobs" VERBOSE=1
+mingw$bits-make -C"$BUILDDIR" -j"$njobs" VERBOSE=2
 echo "::endgroup::"
 
 echo "::group::install"
