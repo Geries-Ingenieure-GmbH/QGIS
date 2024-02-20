@@ -597,7 +597,7 @@ QgsLayerMetadata QgsOgrProvider::layerMetadata() const
   return mLayerMetadata;
 }
 
-QString QgsOgrProvider::getMetadataItem( const QString &key, const QString &domain = QString() ) const
+QString QgsOgrProvider::getMetadataItem( const QString &key, const QString &domain ) const
 {
   return mOgrLayer->GetMetadataItem( key, domain );
 }
