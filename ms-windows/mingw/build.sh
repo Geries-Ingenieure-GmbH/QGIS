@@ -8,7 +8,7 @@
 # shellcheck disable=SC2086,SC2035,SC2035,SC2046,SC2044,SC2012,SC2155
 source ms-windows/mingw/mingwdeps.sh
 arch=${1:-x86_64}
-DEBUG=false
+DEBUG=true
 if [ "$2" == "debug" ]; then
   DEBUG=true
 fi

@@ -52,45 +52,6 @@ QString QgsOapifItemsRequest::errorMessageWithReason( const QString &reason )
   return tr( "Download of items failed: %1" ).arg( reason );
 }
 
-// Remove extraneous indentation spaces from a JSON buffer
-static void removeUselessSpacesFromJSONBuffer( QByteArray &buffer )
-{
-  int j = 0;
-  bool inString = false;
-  const int bufferInitialSize = buffer.size();
-  char *ptr = buffer.data();
-  for ( int i = 0; i < bufferInitialSize; ++i )
-  {
-    const char ch = ptr[i];
-    if ( inString )
-    {
-      if ( ch == '"' )
-      {
-        inString = false;
-      }
-      else if ( ch == '\\' && i + 1 < bufferInitialSize && ptr[i + 1] == '"' )
-      {
-        ptr[j++] = ch;
-        ++i;
-      }
-    }
-    else
-    {
-      if ( ch == '"' )
-      {
-        inString = true;
-      }
-      else if ( ch == ' ' )
-      {
-        // strip spaces outside strings
-        continue;
-      }
-    }
-    ptr[j++] = ch;
-  }
-  buffer.resize( j );
-}
-
 void QgsOapifItemsRequest::processReply()
 {
   QgsDebugMsgLevel( QStringLiteral( "processReply start time: %1" ).arg( time( nullptr ) ), 5 );
@@ -119,11 +80,13 @@ void QgsOapifItemsRequest::processReply()
 
   // Remove extraneous indentation spaces from the string. This helps a bit
   // improving JSON parsing performance afterwards
-  QgsDebugMsgLevel( QStringLiteral( "JSON compaction start time: %1" ).arg( time( nullptr ) ), 5 );
+  /* QgsDebugMsgLevel( QStringLiteral( "JSON compaction start time: %1" ).arg( time( nullptr ) ), 5 ); */
   /* removeUselessSpacesFromJSONBuffer( buffer ); */
-  QgsDebugMsgLevel( QStringLiteral( "JSON compaction end time: %1" ).arg( time( nullptr ) ), 5 );
+  /* QgsDebugMsgLevel( QStringLiteral( "JSON compaction end time: %1" ).arg( time( nullptr ) ), 5 ); */
 
+  // I need to advise GDAL to give me non-standard GeoJSON members at the FeatureCollection level
   const QString vsimemFilename = QStringLiteral( "/vsimem/oaipf_%1.json" ).arg( reinterpret_cast< quintptr >( &buffer ), QT_POINTER_SIZE * 2, 16, QLatin1Char( '0' ) );
+  const QString vsimemFilenameWithOptions = vsimemFilename + QStringLiteral( "|option:NATIVE_DATA=YES" );
   VSIFCloseL( VSIFileFromMemBuffer( vsimemFilename.toUtf8().constData(),
                                     const_cast<GByte *>( reinterpret_cast<const GByte *>( buffer.constData() ) ),
                                     buffer.size(),
@@ -132,7 +95,7 @@ void QgsOapifItemsRequest::processReply()
   const QgsDataProvider::ProviderOptions providerOptions;
   QgsDebugMsgLevel( QStringLiteral( "OGR data source open start time: %1" ).arg( time( nullptr ) ), 5 );
   auto vectorProvider = std::unique_ptr<QgsVectorDataProvider>(
-                          qobject_cast< QgsVectorDataProvider * >( pReg->createProvider( "ogr", vsimemFilename, providerOptions ) ) );
+                          qobject_cast< QgsVectorDataProvider * >( pReg->createProvider( "ogr", vsimemFilenameWithOptions, providerOptions ) ) );
   QgsDebugMsgLevel( QStringLiteral( "OGR data source open end time: %1" ).arg( time( nullptr ) ), 5 );
   if ( !vectorProvider || !vectorProvider->isValid() )
   {
@@ -146,6 +109,7 @@ void QgsOapifItemsRequest::processReply()
 
   mFields = vectorProvider->fields();
   mWKBType = vectorProvider->wkbType();
+  const QString extraInfo = vectorProvider->getMetadataItem( "NATIVE_DATA", "NATIVE_DATA" )
   if ( mComputeBbox )
   {
     mBbox = vectorProvider->extent();
@@ -163,24 +127,10 @@ void QgsOapifItemsRequest::processReply()
   vectorProvider.reset();
   VSIUnlink( vsimemFilename.toUtf8().constData() );
 
-  // We define a json::parser_calback to exclude the "features" key from the JSON parsing
-  // "features" can be very large and it will cost a lot of time to parse it again.
-  json::parser_callback_t excludeFeaturesCb = []( int depth, json::parse_event_t event, json & parsed )
-  {
-    if ( depth == 1 && event == json::parse_event_t::key && parsed == json("features") )
-    {
-      return false;
-    }
-    else
-    {
-      return true;
-    }
-  };
-
   try
   {
     QgsDebugMsgLevel( QStringLiteral( "json::parse() start time: %1" ).arg( time( nullptr ) ), 5 );
-    const json j = json::parse( buffer.constData(), buffer.constData()  + buffer.size(), excludeFeaturesCb );
+    const json j = json::parse( extraInfo.constBegin(), extraInfo.constEnd() );
     QgsDebugMsgLevel( QStringLiteral( "json::parse() end time: %1" ).arg( time( nullptr ) ), 5 );
     // We hope that the "id" field is present in the "properties" object of the features
     mFoundIdTopLevel = false;
