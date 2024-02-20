@@ -38,13 +38,11 @@ PyQgsStyleStorageMssql
 
 # To be fixed
 PyQgsPythonProvider
-PyQgsAggregateCalculator
 PyQgsAnnotation
 PyQgsAuthenticationSystem
 PyQgsBlockingProcess
 PyQgsBookmarkModel
 PyQgsCodeEditor
-PyQgsDateTimeStatisticalSummary
 PyQgsDelimitedTextProvider
 PyQgsEditWidgets
 PyQgsElevationProfileCanvas
@@ -52,16 +50,13 @@ PyQgsProject
 PyQgsFieldModel
 PyQgsFloatingWidget
 PyQgsJsonUtils
-PyQgsLayerMetadata
 PyQgsLayoutHtml
 PyQgsLineSymbolLayers
 PyQgsMapBoxGlStyleConverter
-PyQgsMetadataBase
 PyQgsMemoryProvider
 PyQgsNetworkAccessManager
 PyQgsPalLabelingPlacement
 PyQgsPlot
-PyQgsProjectMetadata
 PyQgsRasterAttributeTable
 PyQgsRasterLayerRenderer
 PyQgsShapefileProvider
@@ -69,7 +64,6 @@ PyQgsTextRenderer
 PyQgsOGRProvider
 PyQgsSpatialiteProvider
 PyQgsSymbolLayerReadSld
-PyQgsTextDocument
 PyQgsVectorLayerCache
 PyQgsVectorLayerEditBuffer
 PyQgsVectorLayerEditUtils
