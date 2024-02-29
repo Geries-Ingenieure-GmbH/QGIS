@@ -570,6 +570,11 @@ QgsLayerMetadata QgsOgrProvider::layerMetadata() const
   return mLayerMetadata;
 }
 
+QString QgsOgrProvider::getMetadataItem( const QString &key, const QString &domain ) const
+{
+  return mOgrLayer->GetMetadataItem( key, domain );
+}
+
 QList<QgsProviderSublayerDetails> QgsOgrProvider::_subLayers( Qgis::SublayerQueryFlags flags ) const
 {
   QgsCPLHTTPFetchOverrider oCPLHTTPFetcher( mAuthCfg );

@@ -599,6 +599,13 @@ class CORE_EXPORT QgsVectorDataProvider : public QgsDataProvider, public QgsFeat
     virtual QVariantMap metadata() const { return QVariantMap(); }
 
     /**
+     * Gets the value for a given metadata key.
+     * For some providers we need to specify a domain name (i.e. OGRLayer).
+     * We need this function because some providers expose more metadata than can fit in a QgsMetadata object.
+     */
+    virtual QString getMetadataItem( const QString &key, const QString &domain ) const { return key + domain; }
+
+    /**
      * Gets the translated metadata key.
      * \param mdKey The metadata key
      * \returns The translated metadata value
