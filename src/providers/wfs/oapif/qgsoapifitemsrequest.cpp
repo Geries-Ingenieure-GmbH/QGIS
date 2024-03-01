@@ -126,7 +126,6 @@ void QgsOapifItemsRequest::processReply()
     const json j = json::parse( extraInfo.toStdString() );
     QgsDebugMsgLevel( QStringLiteral( "json::parse() end time: %1" ).arg( time( nullptr ) ), 5 );
     mFoundIdTopLevel = false;
-      const json &features = j["features"];
     mFoundIdInProperties = true;
 
     const auto links = QgsOAPIFJson::parseLinks( j );
