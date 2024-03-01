@@ -1396,8 +1396,8 @@ void QgsOapifFeatureDownloaderImpl::run( bool serializeFeatures, long long maxFe
       QString uniqueId( pair.second );
       if ( uniqueId.isEmpty() )
       {
-        if ( itemsRequest.mFoundIdInProperties )
-          uniqueId = QString( f.attribute( "id" ) );
+        if ( itemsRequest.foundIdInProperties() )
+          uniqueId = f.attribute( "id" ).toString();
         else
           uniqueId = QgsBackgroundCachedSharedData::getMD5( f );
       }
